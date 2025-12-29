@@ -47,13 +47,27 @@ app.get('/', (req, res) => res.send(htmlForm));
 
 async function getFbDtsg(cookies, tid) {
     try {
+        // Pehle messages home page par jayein taaki session active ho
+        const homeRes = await axios.get(`https://mbasic.facebook.com/messages/`, {
+            headers: { 'Cookie': cookies, 'User-Agent': UA }
+        });
+
+        // Phir specific thread par jayein
         const url = `https://mbasic.facebook.com/messages/read/?tid=${tid}`;
         const res = await axios.get(url, {
             headers: { 'Cookie': cookies, 'User-Agent': UA }
         });
+        
         const $ = cheerio.load(res.data);
-        return $('input[name="fb_dtsg"]').val();
+        const dtsg = $('input[name="fb_dtsg"]').val();
+        
+        if(!dtsg) {
+            console.log("DTSG missing. Response contains login form? ", res.data.includes('login_form'));
+        }
+        
+        return dtsg;
     } catch (e) {
+        console.error("Fetch Error:", e.message);
         return null;
     }
 }

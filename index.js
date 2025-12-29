@@ -8,118 +8,98 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 
 const PORT = process.env.PORT || 8080;
-const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36";
+// Sahi User-Agent jo block nahi hota
+const UA = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
-// UI Template
-const htmlForm = `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>GROUP BOT | COOKIE</title>
+app.get('/', (req, res) => {
+    res.send(`
+    <html>
+    <head><title>FAIZU | FINAL SENDER</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #0b0e14; color: #00ffcc; font-family: 'Courier New', Courier, monospace; }
-        .container { margin-top: 50px; max-width: 500px; }
-        .card { background: #161b22; border: 1px solid #00ffcc; box-shadow: 0 0 15px #00ffcc; padding: 20px; border-radius: 10px; }
-        .form-control { background: #0d1117; color: white; border: 1px solid #30363d; }
-        .btn-custom { background: #00ffcc; color: black; font-weight: bold; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="card">
-            <h3 class="text-center">FAIZU COOKIE SENDER</h3>
-            <form action="/start" method="POST" enctype="multipart/form-data">
-                <div class="mb-3"><label>Cookies:</label><textarea name="cookies" class="form-control" rows="3" placeholder="c_user=...; xs=...; datr=..." required></textarea></div>
-                <div class="mb-3"><label>Group/Thread ID:</label><input type="text" name="threadId" class="form-control" placeholder="Group UID or Thread ID" required></div>
-                <div class="mb-3"><label>Hater Name:</label><input type="text" name="prefix" class="form-control" required></div>
-                <div class="mb-3"><label>Message File (.txt):</label><input type="file" name="txtFile" class="form-control" required></div>
-                <div class="mb-3"><label>Delay (Seconds):</label><input type="number" name="delay" class="form-control" value="5" required></div>
-                <button type="submit" class="btn btn-custom w-100">RUN SCRIPT</button>
-            </form>
+    <style>body{background:#000; color:#0f0; padding:40px;} .card{background:#111; border:1px solid #0f0; padding:20px;}</style></head>
+    <body>
+        <div class="container" style="max-width:500px;">
+            <div class="card">
+                <h3 class="text-center">FAIZU FINAL SENDER</h3>
+                <form action="/start" method="POST" enctype="multipart/form-data">
+                    <label>Cookies:</label><textarea name="cookies" class="form-control mb-3" rows="4" required></textarea>
+                    <label>Group TID:</label><input type="text" name="threadId" class="form-control mb-3" placeholder="Example: 123456789" required>
+                    <label>Hater Name:</label><input type="text" name="prefix" class="form-control mb-3" required>
+                    <label>Message File (.txt):</label><input type="file" name="txtFile" class="form-control mb-3" required>
+                    <label>Delay (Seconds):</label><input type="number" name="delay" class="form-control mb-3" value="5" required>
+                    <button type="submit" class="btn btn-success w-100">START BOT</button>
+                </form>
+            </div>
         </div>
-    </div>
-</body>
-</html>
-`;
+    </body></html>`);
+});
 
-app.get('/', (req, res) => res.send(htmlForm));
-
-async function getFbDtsg(cookies, tid) {
-    try {
-        // Pehle messages home page par jayein taaki session active ho
-        const homeRes = await axios.get(`https://mbasic.facebook.com/messages/`, {
-            headers: { 'Cookie': cookies, 'User-Agent': UA }
-        });
-
-        // Phir specific thread par jayein
-        const url = `https://mbasic.facebook.com/messages/read/?tid=${tid}`;
-        const res = await axios.get(url, {
-            headers: { 'Cookie': cookies, 'User-Agent': UA }
-        });
-        
-        const $ = cheerio.load(res.data);
-        const dtsg = $('input[name="fb_dtsg"]').val();
-        
-        if(!dtsg) {
-            console.log("DTSG missing. Response contains login form? ", res.data.includes('login_form'));
+// Helper function to handle requests with correct headers
+const fbRequest = async (url, cookies, method = 'get', data = null) => {
+    const config = {
+        method: method,
+        url: url,
+        data: data,
+        headers: {
+            'Cookie': cookies,
+            'User-Agent': UA,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1'
         }
-        
-        return dtsg;
-    } catch (e) {
-        console.error("Fetch Error:", e.message);
-        return null;
-    }
-}
+    };
+    return axios(config);
+};
 
-async function sendGroupMessage(cookies, tid, message) {
-    try {
-        const dtsg = await getFbDtsg(cookies, tid);
-        if (!dtsg) return { success: false, error: "Auth Fail (Cookie Expired or Wrong TID)" };
-
-        const postUrl = `https://mbasic.facebook.com/messages/send/?icm=1&tid=${tid}`;
-        const formData = new URLSearchParams();
-        formData.append('fb_dtsg', dtsg);
-        formData.append('body', message);
-        formData.append('send', 'Send');
-
-        const response = await axios.post(postUrl, formData, {
-            headers: {
-                'Cookie': cookies,
-                'User-Agent': UA,
-                'Referer': `https://mbasic.facebook.com/messages/read/?tid=${tid}`
-            }
-        });
-
-        // Check if message actually appears in response
-        return { success: response.status === 200 && response.data.includes('message_') };
-    } catch (err) {
-        return { success: false, error: err.message };
-    }
-}
-
-app.post('/start', upload.single('txtFile'), (req, res) => {
+app.post('/start', upload.single('txtFile'), async (req, res) => {
     const { cookies, threadId, prefix, delay } = req.body;
+    let tid = threadId.trim();
+    if (!tid.includes('cid.g.')) tid = "cid.g." + tid;
+
     const messages = req.file.buffer.toString().split('\n').filter(m => m.trim() !== "");
+    res.send("<h2>Bot Started Successfully! Logs check karein.</h2>");
 
     let index = 0;
-    console.log(`[!] Bot Started on TID: ${threadId}`);
+    const runLoop = async () => {
+        try {
+            if (index >= messages.length) index = 0;
 
-    const interval = setInterval(async () => {
-        if (index >= messages.length) index = 0;
+            // Step 1: Get DTSG
+            const chatPage = await fbRequest(`https://mbasic.facebook.com/messages/read/?tid=${tid}`, cookies);
+            const $ = cheerio.load(chatPage.data);
+            const dtsg = $('input[name="fb_dtsg"]').val();
+            const jazoest = $('input[name="jazoest"]').val();
 
-        const msgToSend = `${prefix} ${messages[index]}`;
-        const result = await sendGroupMessage(cookies, threadId, msgToSend);
+            if (!dtsg) {
+                console.log(`[!] Auth Fail: DTSG nahi mila. Account Checkpoint par ho sakta hai.`);
+            } else {
+                // Step 2: Send Message
+                const msg = `${prefix} ${messages[index]}`;
+                const params = new URLSearchParams();
+                params.append('fb_dtsg', dtsg);
+                params.append('jazoest', jazoest);
+                params.append('body', msg);
+                params.append('send', 'Send');
 
-        if (result.success) {
-            console.log(`[OK] SENT: ${msgToSend}`);
-        } else {
-            console.log(`[ERROR] ${result.error || "Failed to send"}`);
+                const postRes = await fbRequest(`https://mbasic.facebook.com/messages/send/?icm=1&tid=${tid}`, cookies, 'post', params);
+                
+                if (postRes.data.includes('message_') || postRes.status === 200) {
+                    console.log(`[OK] Message ${index + 1} Sent: ${msg}`);
+                }
+            }
+        } catch (err) {
+            console.log(`[ERR] Connection Error: ${err.message}`);
         }
         index++;
-    }, delay * 1000);
+        setTimeout(runLoop, delay * 1000);
+    };
 
-    res.send("<h2>Bot is Running!</h2><p>Check logs in Render.</p>");
+    runLoop();
 });
 
 app.listen(PORT, () => console.log(`Active on Port ${PORT}`));
